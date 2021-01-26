@@ -5,7 +5,6 @@ from keras.callbacks import LearningRateScheduler
 import os
 from keras.callbacks import ModelCheckpoint
 from io import open
-import requests
 import shutil
 from zipfile import ZipFile
 import keras
@@ -20,35 +19,35 @@ execution_path = os.getcwd()
 # ----------------- The Section Responsible for Downloading the Dataset ---------------------
 
 
-SOURCE_PATH = "https://github.com/OlafenwaMoses/IdenProf/releases/download/v1.0/idenprof-jpg.zip"
-FILE_DIR = os.path.join(execution_path, "idenprof-jpg.zip")
-DATASET_DIR = os.path.join(execution_path, "idenprof")
-DATASET_TRAIN_DIR = os.path.join(DATASET_DIR, "train")
-DATASET_TEST_DIR = os.path.join(DATASET_DIR, "test")
+# SOURCE_PATH = "https://github.com/OlafenwaMoses/IdenProf/releases/download/v1.0/idenprof-jpg.zip"
+# FILE_DIR = os.path.join(execution_path, "idenprof-jpg.zip")
+# DATASET_DIR = os.path.join(execution_path, "idenprof")
+# DATASET_TRAIN_DIR = os.path.join(DATASET_DIR, "train")
+# DATASET_TEST_DIR = os.path.join(DATASET_DIR, "test")
 
 
-def download_idenprof():
-    if (os.path.exists(FILE_DIR) == False):
-        print("Downloading idenprof-jpg.zip")
-        data = requests.get(SOURCE_PATH,
-                            stream=True)
+# def download_idenprof():
+    # if (os.path.exists(FILE_DIR) == False):
+    #     print("Downloading idenprof-jpg.zip")
+    #     data = requests.get(SOURCE_PATH,
+    #                         stream=True)
 
-        with open(FILE_DIR, "wb") as file:
-            shutil.copyfileobj(data.raw, file)
-        del data
+    #     with open(FILE_DIR, "wb") as file:
+    #         shutil.copyfileobj(data.raw, file)
+    #     del data
 
-        extract = ZipFile(FILE_DIR)
-        extract.extractall(execution_path)
-        extract.close()
+    #     extract = ZipFile(FILE_DIR)
+    #     extract.extractall(execution_path)
+    #     extract.close()
 
 
 # ----------------- The Section Responsible for Training ResNet50 on the IdenProf dataset ---------------------
 
 # Directory in which to create models
-save_direc = os.path.join(os.getcwd(), 'idenprof_models')
+save_direc = os.path.join(os.getcwd(), 'data/models')
 
 # Name of model files
-model_name = 'idenprof_weight_model.{epoch:03d}-{val_acc}.h5'
+model_name = 'benign_skin_tumor_weight_model.{epoch:03d}-{val_acc}.h5'
 
 # Create Directory if it doesn't exist
 if not os.path.isdir(save_direc):
@@ -158,7 +157,7 @@ def resnet_block(input, channel_depth, num_layers, strided_pool_first=False):
     return input
 
 
-def ResNet50(input_shape, num_classes=10):
+def ResNet50(input_shape, num_classes=9):
     input_object = Input(shape=input_shape)
     layers = [3, 4, 6, 3]
     channel_depths = [256, 512, 1024, 2048]
@@ -191,13 +190,13 @@ def ResNet50(input_shape, num_classes=10):
 
 
 def train_network():
-    download_idenprof()
+    # download_idenprof()
 
-    print(os.listdir(os.path.join(execution_path, "idenprof")))
+    print(os.listdir(os.path.join(execution_path, "data")))
 
     optimizer = keras.optimizers.Adam(lr=0.01, decay=1e-4)
-    batch_size = 32
-    num_classes = 10
+    batch_size = 16
+    num_classes = 9
     epochs = 200
 
     model = ResNet50((224, 224, 3), num_classes=num_classes)
@@ -206,15 +205,16 @@ def train_network():
 
     print("Using real time Data Augmentation")
     train_datagen = ImageDataGenerator(
+        rotation_range=15,
         rescale=1. / 255,
         horizontal_flip=True)
 
     test_datagen = ImageDataGenerator(
         rescale=1. / 255)
 
-    train_generator = train_datagen.flow_from_directory(DATASET_TRAIN_DIR, target_size=(224, 224),
+    train_generator = train_datagen.flow_from_directory("./data/train", target_size=(224, 224),
                                                         batch_size=batch_size, class_mode="categorical")
-    test_generator = test_datagen.flow_from_directory(DATASET_TEST_DIR, target_size=(224, 224), batch_size=batch_size,
+    test_generator = test_datagen.flow_from_directory("./data/test", target_size=(224, 224), batch_size=batch_size,
                                                       class_mode="categorical")
 
     model.fit_generator(train_generator, steps_per_epoch=int(9000 / batch_size), epochs=epochs,
@@ -225,8 +225,8 @@ def train_network():
 # ----------------- The Section Responsible for Inference ---------------------
 CLASS_INDEX = None
 
-MODEL_PATH = os.path.join(execution_path, "idenprof_061-0.7933.h5")
-JSON_PATH = os.path.join(execution_path, "idenprof_model_class.json")
+MODEL_PATH = os.path.join(execution_path, "./data/models/benign_skin_tumor_weight_model.004-1.0.h5")
+JSON_PATH = os.path.join(execution_path, "./data/json/model_class.json")
 
 
 def preprocess_input(x):
@@ -253,10 +253,10 @@ def decode_predictions(preds, top=5, model_json=""):
 
 
 def run_inference():
-    model = ResNet50(input_shape=(224, 224, 3), num_classes=10)
+    model = ResNet50(input_shape=(224, 224, 3), num_classes=9)
     model.load_weights(MODEL_PATH)
 
-    picture = os.path.join(execution_path, "Haitian-fireman.jpg")
+    picture = os.path.join(execution_path, "./data/hemangioma_0000.jpg")
 
     image_to_predict = image.load_img(picture, target_size=(
         224, 224))
@@ -273,6 +273,6 @@ def run_inference():
         print(str(result[0]), " : ", str(result[1] * 100))
 
 
-# run_inference()
-train_network()
+run_inference()
+# train_network()
 
